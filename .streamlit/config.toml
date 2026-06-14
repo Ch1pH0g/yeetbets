@@ -1,0 +1,9 @@
+# Lock a clean light theme for all viewers (consistent with the Google Sheets
+# look, and avoids the chart clashing with a viewer's dark mode).
+[theme]
+base = "light"
+primaryColor = "#1FA37C"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6F8FC"
+textColor = "#243047"
+font = "sans serif"

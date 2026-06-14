@@ -1,0 +1,5 @@
+team,status,note
+# Manual settlement override (optional). Leave empty to let fixtures decide.
+# status: "out" = team eliminated/done -> its bets settle now;
+#         "in"  = team still alive but awaiting a TBD knockout match.
+# Example:  Iraq,out,group stage eliminated
