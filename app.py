@@ -99,7 +99,7 @@ div[data-testid="stMetricLabel"] p {{ color:{MUTED}; font-size:12px; font-weight
 div[data-testid="stMetricValue"] {{ color:{INK}; }}
 
 /* soccer-ball pictograph */
-.ball {{ display:inline-block; width:15px; height:15px; background-size:contain;
+.ball {{ display:inline-block; width:22px; height:22px; background-size:contain;
     background-repeat:no-repeat; vertical-align:middle; }}
 .ball.pick {{ background-image:url("{BALL_PICK}"); }}
 .ball.rival {{ background-image:url("{BALL_RIVAL}"); }}
@@ -113,9 +113,9 @@ div[data-testid="stMetricValue"] {{ color:{INK}; }}
 .who {{ flex:0 0 46%; text-align:right; color:{INK}; font-size:13px; line-height:1.25; }}
 .who b {{ font-weight:600; }}
 .who .ctry {{ color:{MUTED}; font-weight:400; }}
-.track {{ flex:1; display:flex; align-items:center; flex-wrap:wrap; gap:1.5px;
-    min-height:18px; }}
-.gap {{ display:inline-block; width:11px; }}
+.track {{ flex:1; display:flex; align-items:center; flex-wrap:wrap; gap:2px;
+    min-height:26px; }}
+.gap {{ display:inline-block; width:14px; }}
 .none {{ color:{MUTED}; font-size:13px; }}
 .tie {{ color:{INK}; font-weight:700; font-size:12px; margin-left:7px; }}
 .money {{ color:{MUTED}; font-size:12px; margin-left:11px; white-space:nowrap; }}
