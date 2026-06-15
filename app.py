@@ -117,6 +117,7 @@ div[data-testid="stMetricValue"] {{ color:{INK}; }}
 .who .ctry {{ color:{MUTED}; font-weight:400; }}
 .track {{ flex:1; display:flex; flex-direction:column; gap:3px; }}
 .line {{ display:flex; align-items:center; flex-wrap:wrap; gap:2px; min-height:24px; }}
+.rivname {{ color:{MUTED}; font-size:12px; margin-left:9px; }}
 .tie {{ color:{INK}; font-weight:700; font-size:12px; margin-left:7px; }}
 .money {{ color:{MUTED}; font-size:12px; margin-left:11px; white-space:nowrap; }}
 </style>
@@ -148,12 +149,15 @@ def pictograph_html(df: pd.DataFrame) -> str:
         pg, rg = int(r.player_goals), int(r.rival_goals)
         moneyt = f"<span class='money'>{money(r.stake)} → {kfmt(r.potential_return)}</span>"
         tie = f"<span class='tie'>({r.tie_count})</span>" if r.tie_count > 1 else ""
+        # rival player name(s) shown inline (works on mobile, unlike hover tips)
+        rivnames = f"<span class='rivname'>{r.rival_name}</span>" if rg else ""
         pick_line = ("<div class='line'>"
                      + "<span class='ball pick'></span>" * pg + moneyt + "</div>")
-        rival_line = ("<div class='line'>"
-                      + "<span class='ball rival'></span>" * rg + tie + "</div>") if rg else ""
-        title = (f"{r.name} · {r.country} — YEET {pg} vs top rival {rg}"
-                 f"  ·  odds {r.odds:g}  ·  {r.status}")
+        rival_line = ("<div class='line'>" + "<span class='ball rival'></span>" * rg
+                      + rivnames + tie + "</div>") if rg else ""
+        rlbl = "top rivals" if r.tie_count > 1 else "top rival"
+        title = (f"{r.name} · {r.country} — YEET {pg} vs {rlbl} {rg} "
+                 f"({r.rival_name}) · odds {r.odds:g} · {r.status}")
         rows.append(
             f"<div class='prow {band}' title=\"{title}\">"
             f"<div class='who'>{flag} <b>{r.name}</b> "
