@@ -20,6 +20,8 @@ import streamlit as st
 
 import yeet_feed
 
+REFRESH_S = 300   # live_view auto-reruns this often (st.fragment run_every)
+
 st.set_page_config(page_title="YEET · WC2026 top scorers", layout="centered",
                    page_icon="⚽")
 
@@ -113,17 +115,15 @@ div[data-testid="stMetricValue"] {{ color:{INK}; }}
 .who {{ flex:0 0 46%; text-align:right; color:{INK}; font-size:13px; line-height:1.25; }}
 .who b {{ font-weight:600; }}
 .who .ctry {{ color:{MUTED}; font-weight:400; }}
-.track {{ flex:1; display:flex; align-items:center; flex-wrap:wrap; gap:2px;
-    min-height:26px; }}
-.gap {{ display:inline-block; width:14px; }}
-.none {{ color:{MUTED}; font-size:13px; }}
+.track {{ flex:1; display:flex; flex-direction:column; gap:3px; }}
+.line {{ display:flex; align-items:center; flex-wrap:wrap; gap:2px; min-height:24px; }}
 .tie {{ color:{INK}; font-weight:700; font-size:12px; margin-left:7px; }}
 .money {{ color:{MUTED}; font-size:12px; margin-left:11px; white-space:nowrap; }}
 </style>
 """
 
 
-@st.cache_data(ttl=600, show_spinner="Fetching live goals…")
+@st.cache_data(ttl=270, show_spinner="Fetching live goals…")
 def get_feed():
     return yeet_feed.build_feed()
 
@@ -138,42 +138,44 @@ def kfmt(x: float) -> str:
 
 
 def pictograph_html(df: pd.DataFrame) -> str:
-    """One row per bet: flag + name, then green balls (pick) and grey balls (rival)."""
+    """One row per bet: flag + name, then two stacked, left-aligned ball lines —
+    green balls (YEET pick) above, grey balls (team's top rival) below — so the
+    longer line shows who's ahead at a glance."""
     rows = []
     for i, r in enumerate(df.itertuples()):
         band = "band" if i % 2 else ""
         flag = FLAGS.get(r.country, "")
         pg, rg = int(r.player_goals), int(r.rival_goals)
-        balls = "<span class='ball pick'></span>" * pg
-        if rg:
-            balls += "<span class='gap'></span>" + "<span class='ball rival'></span>" * rg
-        if not pg and not rg:
-            balls = "<span class='none'>—</span>"
-        tie = f"<span class='tie'>({r.tie_count})</span>" if r.tie_count > 1 else ""
         moneyt = f"<span class='money'>{money(r.stake)} → {kfmt(r.potential_return)}</span>"
+        tie = f"<span class='tie'>({r.tie_count})</span>" if r.tie_count > 1 else ""
+        pick_line = ("<div class='line'>"
+                     + "<span class='ball pick'></span>" * pg + moneyt + "</div>")
+        rival_line = ("<div class='line'>"
+                      + "<span class='ball rival'></span>" * rg + tie + "</div>") if rg else ""
         title = (f"{r.name} · {r.country} — YEET {pg} vs top rival {rg}"
                  f"  ·  odds {r.odds:g}  ·  {r.status}")
         rows.append(
             f"<div class='prow {band}' title=\"{title}\">"
             f"<div class='who'>{flag} <b>{r.name}</b> "
             f"<span class='ctry'>· {r.country}</span></div>"
-            f"<div class='track'>{balls}{tie}{moneyt}</div></div>")
+            f"<div class='track'>{pick_line}{rival_line}</div></div>")
     legend = ("<div class='legend'>"
               "<span><span class='ball pick'></span>YEET pick</span>"
               "<span><span class='ball rival'></span>team's top rival</span></div>")
     return legend + "<div class='plist'>" + "".join(rows) + "</div>"
 
 
-def main():
-    st.markdown(CSS, unsafe_allow_html=True)
+@st.fragment(run_every=REFRESH_S)
+def live_view():
+    """The data-driven part. As a fragment with run_every, Streamlit re-runs
+    just this every REFRESH_S — so a page left open updates itself (the cache
+    re-fetches) with no full reload and no lost scroll position."""
     feed = get_feed()
     k = feed["kpis"]
 
     st.markdown(
-        f"<div class='hero-title'><b>YEET</b> · World Cup 2026</div>"
-        f"<div class='hero-rule'></div>"
         f"<div class='hero-sub'>Team top-scorer book · live from football-data.org "
-        f"· updated {feed['updated']}</div>",
+        f"· updated {feed['updated']} · auto-refreshes every ~5 min</div>",
         unsafe_allow_html=True)
     st.write("")
 
@@ -205,8 +207,17 @@ def main():
     # ---- soccer-ball pictograph (one ball per goal) -------------------- #
     st.markdown(pictograph_html(df), unsafe_allow_html=True)
 
-    st.caption("Each ball = one goal · 🟢 YEET pick · ⚪ team's current top rival · "
-               "(N) = team-mates tied for top · stake → potential return.")
+    st.caption("Each ball = one goal · 🟢 YEET pick (top) · ⚪ team's current top "
+               "rival (below) · (N) = team-mates tied for top · stake → potential "
+               "return.")
+
+
+def main():
+    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(
+        "<div class='hero-title'><b>YEET</b> · World Cup 2026</div>"
+        "<div class='hero-rule'></div>", unsafe_allow_html=True)
+    live_view()
 
 
 if __name__ == "__main__":
