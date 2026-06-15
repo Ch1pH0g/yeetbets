@@ -20,48 +20,16 @@ from datetime import datetime, timezone
 import yeet_feed
 from yeet_feed import (_norm, _match_player, _status, TEAM_ALIASES,
                        fetch_scorers, fetch_team_has_fixtures, load_overrides)
+from players import PLAYER_BETS
 
 OUT_JSON = os.path.join(yeet_feed.DATA, "picks_feed.json")
 
-# Curated list — (player, country as you'd say it). Country is normalised to
-# football-data's spelling via yeet_feed.TEAM_ALIASES for the goal match.
+# Every pick from the Google Sheet (players.py) — the same single source of
+# truth the sheet uses, so the app never drifts. The "No Scorer" novelty bet is
+# skipped: it isn't a goalscorer and its win condition (team fails to score) is
+# the inverse of what a goalscorer card shows.
 PICKS: list[tuple[str, str]] = [
-    ("Thomas Meunier", "Belgium"),
-    ("Yazan Al-Arab", "Jordan"),
-    ("Rafik Belghali", "Algeria"),
-    ("Brandon Mechele", "Belgium"),
-    ("Ronald Araujo", "Uruguay"),
-    ("Roberto Lopes", "Cape Verde"),
-    ("Abdukodir Khusanov", "Uzbekistan"),
-    ("Jose Maria Gimenez", "Uruguay"),
-    ("Shojae Khalilzadeh", "Iran"),
-    ("Ramy Bensebaini", "Algeria"),
-    ("Timothy Castagne", "Belgium"),
-    ("Ramin Rezaeian", "Iran"),
-    ("Husam Abu Dahab", "Jordan"),
-    ("Saed Al-Rosan", "Jordan"),
-    ("Tommy Smith", "New Zealand"),
-    ("Callan Elliot", "New Zealand"),
-    ("Salim Obaid", "Jordan"),
-    ("Mohammad Abu Hashish", "Jordan"),
-    ("Nicolas Tagliafico", "Argentina"),
-    ("Aissa Mandi", "Algeria"),
-    ("Abdallah Nasib", "Jordan"),
-    ("Gabriel Magalhaes", "Brazil"),
-    ("Ali Nemati", "Iran"),
-    ("Andrew Robertson", "Scotland"),
-    ("Emmanuel Agbadou", "Ivory Coast"),
-    ("Azizjon Ganiev", "Uzbekistan"),
-    ("Ihsan Haddad", "Jordan"),
-    ("Facundo Pellistri", "Uruguay"),
-    ("Rayan Ait-Nouri", "Algeria"),
-    ("Davinson Sanchez", "Colombia"),
-    ("Diney", "Cape Verde"),
-    ("Amadou Onana", "Belgium"),
-    ("Ramon Sosa", "Paraguay"),
-    ("Jefferson Lerma", "Colombia"),
-    ("Nizar Al-Rashdan", "Jordan"),
-    ("Aria Yousefi", "Iran"),
+    (name, team) for name, team in PLAYER_BETS if name.strip().lower() != "no scorer"
 ]
 
 

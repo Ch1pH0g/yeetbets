@@ -34,13 +34,16 @@ if not os.environ.get("FOOTBALL_DATA_API_KEY"):
 ACCENT, MUTED, INK, NAVY = "#1FA37C", "#8A94A6", "#243047", "#1B2A4A"
 BAND, GRID, PAGE = "#F2F5FA", "#E6ECF4", "#E9EDF3"
 
-# Flags keyed on the country spelling used in picks_feed.PICKS.
+# Flags keyed on the team spelling used in players.py (football-data names).
 # Real flag glyphs on macOS/iOS/Android; Windows shows the two-letter code.
 FLAGS = {
-    "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Belgium": "🇧🇪", "Brazil": "🇧🇷",
-    "Cape Verde": "🇨🇻", "Colombia": "🇨🇴", "Iran": "🇮🇷", "Ivory Coast": "🇨🇮",
-    "Jordan": "🇯🇴", "New Zealand": "🇳🇿", "Paraguay": "🇵🇾", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    "Uruguay": "🇺🇾", "Uzbekistan": "🇺🇿",
+    "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪",
+    "Brazil": "🇧🇷", "Cape Verde Islands": "🇨🇻", "Colombia": "🇨🇴", "Croatia": "🇭🇷",
+    "Germany": "🇩🇪", "Ghana": "🇬🇭", "Iran": "🇮🇷", "Ivory Coast": "🇨🇮",
+    "Japan": "🇯🇵", "Jordan": "🇯🇴", "Morocco": "🇲🇦", "New Zealand": "🇳🇿",
+    "Paraguay": "🇵🇾", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "South Korea": "🇰🇷", "Spain": "🇪🇸",
+    "Switzerland": "🇨🇭", "Tunisia": "🇹🇳", "United States": "🇺🇸", "Uruguay": "🇺🇾",
+    "Uzbekistan": "🇺🇿",
 }
 
 
