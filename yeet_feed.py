@@ -45,16 +45,27 @@ def load_env(path: str | None = None) -> None:
 
 load_env()
 
-BETS_CSV = os.path.join(HERE, "data", "YEET_BETS.csv")
-STATUS_CSV = os.path.join(HERE, "data", "team_status.csv")
-OUT_JSON = os.path.join(HERE, "data", "yeet_feed.json")
+DATA = os.path.join(HERE, "data")
+STATUS_CSV = os.path.join(DATA, "team_status.csv")
+OUT_JSON = os.path.join(DATA, "yeet_feed.json")
+
+# One CSV per bookmaker (all share the same export format). The label is what
+# shows on each player's row; the file holds that book's bets.
+BOOK_FILES = {
+    "YEET": "YEET_BETS_updated.csv",
+    "Bethog": "Bethog-bets.csv",
+    "BOL": "BOL-bets.csv",
+    "Stake": "Stake-bets.csv",
+}
 
 COMP = "https://api.football-data.org/v4/competitions/WC"
-# football-data spellings differ from the CSV here and there; normalise on the
+# football-data spellings differ from the books here and there; normalise on the
 # CSV side. Extend as the diagnostics flag unmatched teams.
 TEAM_ALIASES = {
     "new zeland": "New Zealand",
     "cape verde": "Cape Verde Islands",
+    "czech republic": "Czechia",
+    "bosnia & herzegovina": "Bosnia and Herzegovina",
 }
 # fixture statuses that mean the team still has football to play
 LIVE_STATUSES = {"SCHEDULED", "TIMED", "IN_PLAY", "PAUSED", "SUSPENDED", "POSTPONED"}
@@ -78,36 +89,41 @@ def _api_get(path: str, **params):
 
 
 # ------------------------------- inputs ------------------------------------ #
-def parse_bets(path: str = BETS_CSV) -> list[dict]:
-    """Parse 'Country - Surname, First', stake, decimal odds.
+def _name_key(name: str) -> str:
+    """Loose key for matching the same player across books despite spelling
+    (spaces, hyphens, case, accents): 'In-beom Hwang' == 'In Beom Hwang'."""
+    return "".join(c for c in _norm(name) if c.isalnum())
 
-    Handles mononyms with no comma ('Brazil - Marquinhos') and applies the
-    team-name alias map so the football-data lookup matches.
+
+def parse_books() -> dict:
+    """Read every book CSV (Selection, Team, Unit stake) and aggregate by player.
+
+    Returns {(_name_key, fd_team_norm): {name, country, fd_team, books}} where
+    books is {book_label: total_stake} — one entry per player even if they were
+    backed at several books.
     """
-    bets = []
-    with open(path, encoding="utf-8") as f:
-        for raw in csv.reader(f):
-            if len(raw) < 3:
-                continue
-            label, stake_s, odds_s = raw[0], raw[1], raw[2]
-            try:
-                stake, odds = float(stake_s), float(odds_s)
-            except ValueError:
-                continue  # header row ("1, Stake, Odds (Decimal)")
-            if " - " not in label:
-                continue
-            country, name = (p.strip() for p in label.split(" - ", 1))
-            if "," in name:
-                surname, first = (p.strip() for p in name.split(",", 1))
-            else:
-                surname, first = name, ""           # mononym
-            fd_team = TEAM_ALIASES.get(_norm(country), country)
-            bets.append({
-                "country": country, "fd_team": fd_team,
-                "name": name, "surname": surname, "first": first,
-                "stake": stake, "odds": odds,
-            })
-    return bets
+    players: dict = {}
+    for book, fname in BOOK_FILES.items():
+        path = os.path.join(DATA, fname)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                name = (row.get("Selection") or "").strip()
+                country = (row.get("Team") or "").strip()
+                try:
+                    stake = float(row.get("Unit stake") or row.get("Cost") or 0)
+                except ValueError:
+                    continue
+                if not name or not country or not stake:
+                    continue
+                fd_team = TEAM_ALIASES.get(_norm(country), country)
+                key = (_name_key(name), _norm(fd_team))
+                p = players.setdefault(key, {
+                    "name": name, "country": country, "fd_team": fd_team,
+                    "books": {}})
+                p["books"][book] = p["books"].get(book, 0.0) + stake
+    return players
 
 
 def load_overrides(path: str = STATUS_CSV) -> dict:
@@ -144,13 +160,13 @@ def fetch_team_has_fixtures() -> dict:
     return live
 
 
-# --------------------------- per-bet compute ------------------------------- #
-def _match_player(bet: dict, scorers: list[tuple[str, str, int]]):
+# --------------------------- per-player compute ---------------------------- #
+def _match_player(name: str, fd_team: str, scorers: list[tuple[str, str, int]]):
     """(player_goals, rivals) where rivals = [(name, goals)] of team-mates who
     have scored. Team-constrained so a bare surname can't match another team."""
-    nteam = _norm(bet["fd_team"])
-    full = _norm(f"{bet['first']} {bet['surname']}")
-    last = _norm(bet["surname"]).split()[-1] if bet["surname"] else ""
+    nteam = _norm(fd_team)
+    full = _norm(name)
+    last = full.split()[-1] if full else ""
 
     def is_pick(nm: str) -> bool:
         n = _norm(nm)
@@ -167,78 +183,65 @@ def _match_player(bet: dict, scorers: list[tuple[str, str, int]]):
     return pg, rivals
 
 
-def _settle(pg: int, rivals: list, stake: float, odds: float, pending: bool):
-    """Returns (status, tie_count, deadheat_d, pnl, potential_return).
-
-    tie_count = team-mates sharing the top rival tally (the '(N)' badge, shown
-    when >1). On settlement, a tie at the top pays odds / (players tied)."""
-    rival_top = max((g for _, g in rivals), default=0)
-    tie_count = sum(1 for _, g in rivals if g == rival_top and rival_top > 0)
-    potential = stake * odds
-
+def _status(pg: int, rival_top: int, pending: bool) -> str:
+    """Won / Lost / Pending. No odds in the data, so no P&L — a settled tie at
+    the top still counts as Won (a dead-heat win, just no payout to compute)."""
     if pending:
-        return "Pending", tie_count, 0, 0.0, potential
-
-    if pg > rival_top and pg > 0:                     # sole top scorer
-        return "Won", tie_count, 1, stake * (odds - 1), potential
-    if pg == rival_top and pg > 0:                    # dead heat at the top
-        d = tie_count + 1                            # rivals tied + our pick
-        return "Won", tie_count, d, stake * odds / d - stake, potential / d
-    return "Lost", tie_count, 0, -stake, potential   # beaten, or nobody scored
+        return "Pending"
+    if pg > 0 and pg >= rival_top:        # sole or tied top scorer
+        return "Won"
+    return "Lost"
 
 
 # ------------------------------- build ------------------------------------- #
 def build_feed() -> dict:
-    bets = parse_bets()
+    players = parse_books()
     overrides = load_overrides()
     scorers = fetch_scorers()
     live = fetch_team_has_fixtures()
     scorer_teams = {_norm(tm) for _, tm, _ in scorers}
 
     rows, unmatched_team = [], []
-    for b in bets:
-        nteam = _norm(b["fd_team"])
-        pg, rivals = _match_player(b, scorers)
+    for p in players.values():
+        nteam = _norm(p["fd_team"])
+        pg, rivals = _match_player(p["name"], p["fd_team"], scorers)
         rival_top = max((g for _, g in rivals), default=0)
         tied = [nm for nm, g in rivals if g == rival_top and rival_top]  # all at top
         rival_name = ", ".join(tied) if tied else "—"
+        tie_count = len(tied)
 
         ov = overrides.get(nteam)
-        if ov:
-            pending = ov == "in"
-        else:
-            pending = live.get(nteam, True)          # default to pending if unknown
-
-        status, tie_count, d, pnl, potential = _settle(
-            pg, rivals, b["stake"], b["odds"], pending)
+        pending = (ov == "in") if ov else live.get(nteam, True)
+        status = _status(pg, rival_top, pending)
 
         if nteam not in scorer_teams and nteam not in live:
-            unmatched_team.append(b["country"])
+            unmatched_team.append(p["country"])
 
+        books = sorted(({"book": b, "stake": round(s, 2)}
+                        for b, s in p["books"].items()),
+                       key=lambda x: -x["stake"])
         rows.append({
-            "country": b["country"], "name": b["name"],
-            "stake": b["stake"], "odds": b["odds"],
+            "country": p["country"], "name": p["name"],
             "player_goals": pg, "rival_name": rival_name, "rival_goals": rival_top,
             "tie_count": tie_count, "status": status,
-            "deadheat_d": d, "pnl": round(pnl, 2),
-            "potential_return": round(potential, 2),
+            "books": books, "total_stake": round(sum(p["books"].values()), 2),
         })
 
-    # country A->Z, then name Z->A within country (stable two-pass sort)
-    rows.sort(key=lambda r: r["name"], reverse=True)
-    rows.sort(key=lambda r: r["country"])
+    rows.sort(key=lambda r: (r["country"], r["name"]))
 
     settled = [r for r in rows if r["status"] in ("Won", "Lost")]
     pending = [r for r in rows if r["status"] == "Pending"]
     feed = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "kpis": {
-            "settled_pnl": round(sum(r["pnl"] for r in settled), 2),
-            "settled_count": len(settled),
-            "pending_stake": round(sum(r["stake"] for r in pending), 2),
-            "pending_potential_return": round(sum(r["potential_return"] for r in pending), 2),
+            "players": len(rows),
+            "books": len({b["book"] for r in rows for b in r["books"]}),
+            "total_staked": round(sum(r["total_stake"] for r in rows), 2),
+            "pending_stake": round(sum(r["total_stake"] for r in pending), 2),
             "pending_count": len(pending),
-            "total_staked": round(sum(r["stake"] for r in rows), 2),
+            "settled_count": len(settled),
+            "won_count": sum(1 for r in settled if r["status"] == "Won"),
+            "lost_count": sum(1 for r in settled if r["status"] == "Lost"),
         },
         "bets": rows,
     }
@@ -257,19 +260,20 @@ def main():
         json.dump(feed, f, indent=2, ensure_ascii=False)
 
     k = feed["kpis"]
-    print(f"[{feed['updated']}] {len(feed['bets'])} bets -> {OUT_JSON}")
-    print(f"  settled P&L ${k['settled_pnl']:,.2f} ({k['settled_count']} bets) | "
-          f"pending ${k['pending_stake']:,.0f} staked, "
-          f"${k['pending_potential_return']:,.0f} potential ({k['pending_count']} live)")
+    print(f"[{feed['updated']}] {k['players']} players across {k['books']} books "
+          f"-> {OUT_JSON}")
+    print(f"  total staked ${k['total_staked']:,.0f} | pending ${k['pending_stake']:,.0f} "
+          f"({k['pending_count']}) | settled {k['won_count']}W/{k['lost_count']}L")
     if feed.get("warnings"):
         print("  UNMATCHED TEAMS (add to TEAM_ALIASES): "
               + ", ".join(feed["warnings"]))
     if args.print:
         for r in feed["bets"]:
             tie = f" ({r['tie_count']})" if r["tie_count"] > 1 else ""
-            print(f"  {r['country']:<14} {r['name']:<28} "
+            books = ", ".join(f"{b['book']} ${b['stake']:,.0f}" for b in r["books"])
+            print(f"  {r['country']:<16} {r['name']:<26} "
                   f"{r['player_goals']}g vs {r['rival_goals']}{tie:<5} "
-                  f"{r['status']:<8} ${r['pnl']:>10,.2f}")
+                  f"{r['status']:<8} {books}")
 
 
 if __name__ == "__main__":

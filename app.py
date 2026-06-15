@@ -22,7 +22,7 @@ import yeet_feed
 
 REFRESH_S = 300   # live_view auto-reruns this often (st.fragment run_every)
 
-st.set_page_config(page_title="YEET · WC2026 top scorers", layout="centered",
+st.set_page_config(page_title="Team Top Goalscorer · WC2026", layout="centered",
                    page_icon="⚽")
 
 # Streamlit Cloud puts the key in st.secrets; mirror it into env for yeet_feed.
@@ -115,8 +115,10 @@ div[data-testid="stMetricValue"] {{ color:{INK}; }}
 .pk-name {{ flex:0 0 36%; color:{INK}; font-weight:500; }}
 .pk-goals {{ flex:0 0 auto; min-width:20px; }}
 .pk-stand {{ flex:1 1 auto; display:flex; align-items:center; gap:7px; flex-wrap:wrap; }}
-.pk-mny {{ flex:0 0 auto; margin-left:auto; color:{MUTED}; font-size:12px;
-    white-space:nowrap; }}
+.pk-books {{ flex:1 1 100%; display:flex; flex-wrap:wrap; gap:6px; margin-top:3px; }}
+.bk {{ background:#EFF3F9; color:{MUTED}; font-size:11px; padding:2px 8px;
+    border-radius:6px; }}
+.bk b {{ color:{INK}; font-weight:600; }}
 .chip {{ font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px;
     white-space:nowrap; }}
 .chip.lead, .chip.won {{ background:#E4F4EA; color:#1E7E45; }}
@@ -137,11 +139,6 @@ def money(x: float) -> str:
     return f"${x:,.0f}" if abs(x) >= 1000 else f"${x:,.2f}"
 
 
-def kfmt(x: float) -> str:
-    """$12.0k style for compact labels."""
-    return f"${x/1000:.1f}k" if abs(x) >= 1000 else f"${x:.0f}"
-
-
 def standing(status: str, pg: int, rg: int) -> tuple[str, str]:
     """(chip_class, label): settlement once settled, else live standing vs the
     best other scorer on the team."""
@@ -159,8 +156,8 @@ def standing(status: str, pg: int, rg: int) -> tuple[str, str]:
 
 
 def team_tables_html(df: pd.DataFrame) -> str:
-    """One card per team; a row per YEET pick on that team showing goals, live
-    standing, the rival to beat, and stake -> potential return."""
+    """One card per team; a row per pick showing goals, live standing, the rival
+    to beat, and the risk staked at each book it was backed on."""
     df = df.sort_values(["country", "player_goals", "name"],
                         ascending=[True, False, True])
     blocks = []
@@ -173,12 +170,14 @@ def team_tables_html(df: pd.DataFrame) -> str:
             goals = ("<span class='ball pick'></span>" * pg if pg
                      else "<span class='zero'>0</span>")
             vs = f"<span class='vs'>vs {r.rival_name} ({rg})</span>" if rg else ""
+            books = " ".join(f"<span class='bk'>{b['book']} <b>{money(b['stake'])}</b></span>"
+                             for b in r.books)
             picks.append(
                 f"<div class='pk'>"
                 f"<div class='pk-name'>{r.name}</div>"
                 f"<div class='pk-goals'>{goals}</div>"
                 f"<div class='pk-stand'><span class='chip {cls}'>{label}</span>{vs}</div>"
-                f"<div class='pk-mny'>{money(r.stake)} → {kfmt(r.potential_return)}</div>"
+                f"<div class='pk-books'>{books}</div>"
                 f"</div>")
         n = len(g)
         blocks.append(
@@ -197,22 +196,24 @@ def live_view():
     k = feed["kpis"]
 
     st.markdown(
-        f"<div class='hero-sub'>Team top-scorer book · live from football-data.org "
-        f"· updated {feed['updated']} · auto-refreshes every ~5 min</div>",
+        f"<div class='hero-sub'>{k['players']} picks across {k['books']} books · "
+        f"live from football-data.org · updated {feed['updated']} · "
+        f"auto-refreshes every ~5 min</div>",
         unsafe_allow_html=True)
     st.write("")
 
     if feed.get("warnings"):
-        st.warning("Unmatched teams (check spelling / TEAM_ALIASES): "
+        st.warning("Teams not in football-data's WC feed (shown but not tracked): "
                    + ", ".join(feed["warnings"]))
 
     # ---- settled / pending widget -------------------------------------- #
     c1, c2, c3 = st.columns(3)
-    c1.metric("Settled P&L", money(k["settled_pnl"]),
-              f"{k['settled_count']} bets settled", delta_color="off")
-    c2.metric("Pending stake (at risk)", money(k["pending_stake"]),
-              f"{k['pending_count']} bets in play", delta_color="off")
-    c3.metric("Total staked", money(k["total_staked"]))
+    c1.metric("Total staked", money(k["total_staked"]),
+              f"{k['players']} picks · {k['books']} books", delta_color="off")
+    c2.metric("Pending (at risk)", money(k["pending_stake"]),
+              f"{k['pending_count']} picks in play", delta_color="off")
+    c3.metric("Settled", f"{k['won_count']}W · {k['lost_count']}L",
+              f"of {k['settled_count']} settled", delta_color="off")
 
     st.write("")
 
@@ -230,15 +231,15 @@ def live_view():
     # ---- per-team tables ----------------------------------------------- #
     st.markdown(team_tables_html(df), unsafe_allow_html=True)
 
-    st.caption("Each green ball = a goal by your pick · standing is vs the team's "
+    st.caption("Each green ball = a goal by our pick · standing is vs the team's "
                "best other scorer (\"vs …\") · 🟢 leading · 🟡 tied · 🔴 behind · "
-               "✅/❌ once the team is out · stake → potential return.")
+               "✅/❌ once the team is out · chips show risk staked at each book.")
 
 
 def main():
     st.markdown(CSS, unsafe_allow_html=True)
     st.markdown(
-        "<div class='hero-title'><b>YEET</b> · World Cup 2026</div>"
+        "<div class='hero-title'><b>Team Top Goalscorer</b> · World Cup 2026</div>"
         "<div class='hero-rule'></div>", unsafe_allow_html=True)
     live_view()
 
