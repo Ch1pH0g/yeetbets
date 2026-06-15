@@ -65,7 +65,7 @@ TEAM_ALIASES = {
     "new zeland": "New Zealand",
     "cape verde": "Cape Verde Islands",
     "czech republic": "Czechia",
-    "bosnia & herzegovina": "Bosnia and Herzegovina",
+    "bosnia & herzegovina": "Bosnia-Herzegovina",
 }
 # fixture statuses that mean the team still has football to play
 LIVE_STATUSES = {"SCHEDULED", "TIMED", "IN_PLAY", "PAUSED", "SUSPENDED", "POSTPONED"}
