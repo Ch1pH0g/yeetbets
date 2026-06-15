@@ -6,13 +6,16 @@ Deploy:        push to GitHub, point Streamlit Community Cloud at this file,
 
 Data refreshes on its own every ~10 min via st.cache_data(ttl=600) — one shared
 fetch regardless of how many people are watching.
+
+The chart is a soccer-ball pictograph (one ball per goal) rendered as HTML/SVG —
+green balls for the YEET pick, greyed balls for the team's top rival.
 """
 from __future__ import annotations
 
+import base64
 import os
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 import yeet_feed
@@ -32,7 +35,6 @@ if not os.environ.get("FOOTBALL_DATA_API_KEY"):
 # design system (shared with the Google Sheets look)
 ACCENT, MUTED, INK, NAVY = "#1FA37C", "#8A94A6", "#243047", "#1B2A4A"
 BAND, GRID, PAGE = "#F2F5FA", "#E6ECF4", "#E9EDF3"
-POS, NEG = "#1E7E45", "#C5221F"
 
 # Flags keyed on the CSV country spelling (e.g. "New Zeland", "Cape Verde").
 # Real flag glyphs on macOS/iOS/Android; Windows shows the two-letter code.
@@ -46,6 +48,23 @@ FLAGS = {
     "Senegal": "🇸🇳", "South Africa": "🇿🇦", "South Korea": "🇰🇷", "Spain": "🇪🇸",
     "Sweden": "🇸🇪", "Tunisia": "🇹🇳", "Uruguay": "🇺🇾", "Uzbekistan": "🇺🇿",
 }
+
+
+def _ball_uri(fill: str, stroke: str) -> str:
+    """A small soccer-ball SVG (white pattern on `fill`) as a data URI."""
+    svg = (
+        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+        f"<circle cx='50' cy='50' r='45' fill='{fill}' stroke='{stroke}' stroke-width='4'/>"
+        f"<polygon points='50,28 68,41 61,62 39,62 32,41' fill='#FFFFFF'/>"
+        f"<g stroke='#FFFFFF' stroke-width='5' stroke-linecap='round'>"
+        f"<line x1='50' y1='28' x2='50' y2='7'/><line x1='68' y1='41' x2='87' y2='30'/>"
+        f"<line x1='61' y1='62' x2='75' y2='82'/><line x1='39' y1='62' x2='25' y2='82'/>"
+        f"<line x1='32' y1='41' x2='13' y2='30'/></g></svg>")
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+
+BALL_PICK = _ball_uri(ACCENT, "#15795B")
+BALL_RIVAL = _ball_uri("#C2C9D4", "#9AA3B2")
 
 CSS = f"""
 <style>
@@ -76,9 +95,30 @@ footer {{ visibility: hidden; }}
 div[data-testid="stMetric"] {{
     background:#FBFCFE; border:1px solid #EAF0F7; border-radius:12px;
     padding:14px 16px 12px; }}
-div[data-testid="stMetricLabel"] p {{ color:{MUTED}; font-size:12px;
-    font-weight:500; }}
+div[data-testid="stMetricLabel"] p {{ color:{MUTED}; font-size:12px; font-weight:500; }}
 div[data-testid="stMetricValue"] {{ color:{INK}; }}
+
+/* soccer-ball pictograph */
+.ball {{ display:inline-block; width:15px; height:15px; background-size:contain;
+    background-repeat:no-repeat; vertical-align:middle; }}
+.ball.pick {{ background-image:url("{BALL_PICK}"); }}
+.ball.rival {{ background-image:url("{BALL_RIVAL}"); }}
+.legend {{ display:flex; gap:22px; align-items:center; color:{MUTED};
+    font-size:13px; margin:4px 0 10px; }}
+.legend .ball {{ margin-right:7px; }}
+.plist {{ display:flex; flex-direction:column; gap:2px; }}
+.prow {{ display:flex; align-items:center; gap:10px; padding:7px 12px;
+    border-radius:8px; }}
+.prow.band {{ background:{BAND}; }}
+.who {{ flex:0 0 46%; text-align:right; color:{INK}; font-size:13px; line-height:1.25; }}
+.who b {{ font-weight:600; }}
+.who .ctry {{ color:{MUTED}; font-weight:400; }}
+.track {{ flex:1; display:flex; align-items:center; flex-wrap:wrap; gap:1.5px;
+    min-height:18px; }}
+.gap {{ display:inline-block; width:11px; }}
+.none {{ color:{MUTED}; font-size:13px; }}
+.tie {{ color:{INK}; font-weight:700; font-size:12px; margin-left:7px; }}
+.money {{ color:{MUTED}; font-size:12px; margin-left:11px; white-space:nowrap; }}
 </style>
 """
 
@@ -93,14 +133,35 @@ def money(x: float) -> str:
 
 
 def kfmt(x: float) -> str:
-    """$12.0k style for compact bar labels."""
+    """$12.0k style for compact labels."""
     return f"${x/1000:.1f}k" if abs(x) >= 1000 else f"${x:.0f}"
 
 
-def row_label(name: str, country: str) -> str:
-    """Flag + player + muted country (HTML, rendered by Plotly tick labels)."""
-    flag = FLAGS.get(country, "")
-    return f"{flag} {name}  <span style='color:{MUTED}'>· {country}</span>".strip()
+def pictograph_html(df: pd.DataFrame) -> str:
+    """One row per bet: flag + name, then green balls (pick) and grey balls (rival)."""
+    rows = []
+    for i, r in enumerate(df.itertuples()):
+        band = "band" if i % 2 else ""
+        flag = FLAGS.get(r.country, "")
+        pg, rg = int(r.player_goals), int(r.rival_goals)
+        balls = "<span class='ball pick'></span>" * pg
+        if rg:
+            balls += "<span class='gap'></span>" + "<span class='ball rival'></span>" * rg
+        if not pg and not rg:
+            balls = "<span class='none'>—</span>"
+        tie = f"<span class='tie'>({r.tie_count})</span>" if r.tie_count > 1 else ""
+        moneyt = f"<span class='money'>{money(r.stake)} → {kfmt(r.potential_return)}</span>"
+        title = (f"{r.name} · {r.country} — YEET {pg} vs top rival {rg}"
+                 f"  ·  odds {r.odds:g}  ·  {r.status}")
+        rows.append(
+            f"<div class='prow {band}' title=\"{title}\">"
+            f"<div class='who'>{flag} <b>{r.name}</b> "
+            f"<span class='ctry'>· {r.country}</span></div>"
+            f"<div class='track'>{balls}{tie}{moneyt}</div></div>")
+    legend = ("<div class='legend'>"
+              "<span><span class='ball pick'></span>YEET pick</span>"
+              "<span><span class='ball rival'></span>team's top rival</span></div>")
+    return legend + "<div class='plist'>" + "".join(rows) + "</div>"
 
 
 def main():
@@ -141,61 +202,11 @@ def main():
         st.info(f"No {choice.lower()} yet.")
         return
 
-    # ---- grouped bars: YEET's pick vs the team's top rival ------------- #
-    df = df.assign(label=[row_label(n, c) for n, c in zip(df["name"], df["country"])])
+    # ---- soccer-ball pictograph (one ball per goal) -------------------- #
+    st.markdown(pictograph_html(df), unsafe_allow_html=True)
 
-    def end_text(r):
-        tie = f"  ({r.tie_count})" if r.tie_count > 1 else ""
-        return f"{int(r.player_goals)}{tie}   {money(r.stake)} → {kfmt(r.potential_return)}"
-
-    pick = go.Bar(
-        name="YEET pick", y=df["label"], x=df["player_goals"], orientation="h",
-        marker=dict(color=ACCENT), text=[end_text(r) for r in df.itertuples()],
-        textposition="outside", textfont=dict(color=INK, size=11),
-        cliponaxis=False, customdata=df[["name", "country", "odds", "pnl"]],
-        hovertemplate=("<b>%{customdata[0]}</b> · %{customdata[1]}<br>"
-                       "YEET pick: %{x} goals<br>Odds: %{customdata[2]}<br>"
-                       "P&L: $%{customdata[3]:,.2f}<extra></extra>"))
-    rlabel = ["Top rivals" if t > 1 else "Top rival" for t in df["tie_count"]]
-    rival = go.Bar(
-        name="Team's top rival", y=df["label"], x=df["rival_goals"],
-        orientation="h", marker=dict(color=MUTED),
-        customdata=df.assign(rlabel=rlabel)[["rlabel", "rival_name"]],
-        hovertemplate=("%{customdata[0]} on %{x}: %{customdata[1]}<extra></extra>"))
-
-    # x-axis floor so a lone 1-goal bar doesn't stretch full-width, but kept
-    # tight so we don't waste width while goals are still low
-    top = int(max(df["player_goals"].max(), df["rival_goals"].max(), 0))
-    xmax = max(4, top + 1)
-    xmax += xmax % 2
-
-    fig = go.Figure([pick, rival])
-    order = list(df["label"])[::-1]   # feed is country A->Z, name Z->A; top row first
-    fig.update_yaxes(categoryorder="array", categoryarray=order,
-                     tickfont=dict(color=INK, size=12))
-    # zebra banding — one band per player (covers both its bars), full width
-    fig.update_layout(shapes=[
-        dict(type="rect", xref="paper", yref="y", x0=0, x1=1,
-             y0=i - 0.5, y1=i + 0.5, fillcolor=BAND, line_width=0, layer="below")
-        for i in range(len(order)) if i % 2 == 0])
-    fig.update_layout(
-        barmode="group", bargap=0.22, bargroupgap=0.06, barcornerradius=3,
-        height=110 + 30 * len(df), margin=dict(l=10, r=150, t=8, b=34),
-        xaxis_title="Goals", yaxis_title=None,
-        font=dict(family="Roboto", color=INK),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0,
-                    font=dict(size=12)),
-        hoverlabel=dict(bgcolor="white", bordercolor=GRID,
-                        font=dict(family="Roboto", color=INK)),
-    )
-    fig.update_xaxes(range=[0, xmax], dtick=1, gridcolor=GRID,
-                     zerolinecolor=GRID, title_font=dict(size=12, color=MUTED))
-    st.plotly_chart(fig, width="stretch",
-                    config={"displayModeBar": False})
-
-    st.caption("🟢 YEET pick · ⚪ team's current top rival · "
-               "label = goals, (N) team-mates tied for top, stake → potential return.")
+    st.caption("Each ball = one goal · 🟢 YEET pick · ⚪ team's current top rival · "
+               "(N) = team-mates tied for top · stake → potential return.")
 
 
 if __name__ == "__main__":
