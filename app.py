@@ -155,11 +155,11 @@ def standing(status: str, pg: int, rg: int) -> tuple[str, str]:
     return "behind", f"{rg - pg} behind"
 
 
-def team_tables_html(df: pd.DataFrame) -> str:
+def team_tables_html(df: pd.DataFrame, country_asc: bool = True) -> str:
     """One card per team; a row per pick showing goals, live standing, the rival
     to beat, and the risk staked at each book it was backed on."""
     df = df.sort_values(["country", "player_goals", "name"],
-                        ascending=[True, False, True])
+                        ascending=[country_asc, False, True])
     blocks = []
     for country, g in df.groupby("country", sort=False):
         flag = FLAGS.get(country, "")
@@ -217,19 +217,33 @@ def live_view():
 
     st.write("")
 
-    # ---- filter (per viewer, independent) ------------------------------ #
+    # ---- filters (per viewer, independent) ----------------------------- #
     choice = st.radio("Show", ["All bets", "Pending", "Won", "Lost"],
                       horizontal=True, label_visibility="collapsed")
     df = pd.DataFrame(feed["bets"])
     if choice != "All bets":
         want = "Pending" if choice == "Pending" else choice.rstrip("s")
         df = df[df["status"] == want]
+
+    countries = sorted(df["country"].unique())
+    fc1, fc2, fc3 = st.columns([3, 3, 2])
+    picked = fc1.multiselect("Country", countries, placeholder="All countries")
+    query = fc2.text_input("Search player", placeholder="player or country…")
+    order = fc3.selectbox("Sort", ["A → Z", "Z → A"])
+
+    if picked:
+        df = df[df["country"].isin(picked)]
+    if query:
+        q = query.strip()
+        df = df[df["name"].str.contains(q, case=False, na=False)
+                | df["country"].str.contains(q, case=False, na=False)]
     if df.empty:
-        st.info(f"No {choice.lower()} yet.")
+        st.info("No picks match those filters.")
         return
 
     # ---- per-team tables ----------------------------------------------- #
-    st.markdown(team_tables_html(df), unsafe_allow_html=True)
+    st.markdown(team_tables_html(df, country_asc=(order == "A → Z")),
+                unsafe_allow_html=True)
 
     st.caption("Each green ball = a goal by our pick · standing is vs the team's "
                "best other scorer (\"vs …\") · 🟢 leading · 🟡 tied · 🔴 behind · "
