@@ -78,6 +78,16 @@ def _norm(s: str) -> str:
                    if not unicodedata.combining(c)).lower().strip()
 
 
+def names_match(a: str, b: str) -> bool:
+    """True if two names plausibly refer to the same person: order-independent,
+    accent/case-insensitive, whole-token containment (one name's token set is a
+    subset of the other's). So 'Son' ⇄ 'Son Heung-min' and reordered names match,
+    but 'Ronald Araujo' and 'Maxi Araujo' (same surname, different player) do NOT —
+    a bare surname only matches when nothing else in the names contradicts it."""
+    ta, tb = set(_norm(a).split()), set(_norm(b).split())
+    return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
+
+
 def _api_get(path: str, **params):
     key = os.environ.get("FOOTBALL_DATA_API_KEY")
     if not key:
@@ -165,12 +175,9 @@ def _match_player(name: str, fd_team: str, scorers: list[tuple[str, str, int]]):
     """(player_goals, rivals) where rivals = [(name, goals)] of team-mates who
     have scored. Team-constrained so a bare surname can't match another team."""
     nteam = _norm(fd_team)
-    full = _norm(name)
-    last = full.split()[-1] if full else ""
 
     def is_pick(nm: str) -> bool:
-        n = _norm(nm)
-        return n == full or (bool(last) and last in n)
+        return names_match(name, nm)
 
     pg, rivals = 0, []
     for nm, tm, g in scorers:
