@@ -122,7 +122,11 @@ div[data-testid="stMetricValue"] {{ color:{INK}; }}
 
 
 @st.cache_data(ttl=270, show_spinner="Fetching live goals…")
-def get_feed():
+def get_feed(picks_sig: str):
+    # picks_sig is unused inside, but being an argument makes it part of the
+    # cache key — so the feed rebuilds the moment the player list (players.py)
+    # changes, not only when the 270s ttl lapses. Without it, st.cache_data keys
+    # only on this function's code, which doesn't change when players.py does.
     return picks_feed.build_picks_feed()
 
 
@@ -175,7 +179,7 @@ def team_tables_html(df: pd.DataFrame, country_asc: bool = True) -> str:
 def live_view():
     """As a fragment with run_every, Streamlit re-runs just this every
     REFRESH_S, so a page left open updates itself with no full reload."""
-    feed = get_feed()
+    feed = get_feed(repr(picks_feed.PICKS))   # cache busts when the roster changes
     k = feed["kpis"]
 
     st.markdown(
