@@ -38,12 +38,13 @@ BAND, GRID, PAGE = "#F2F5FA", "#E6ECF4", "#E9EDF3"
 # Real flag glyphs on macOS/iOS/Android; Windows shows the two-letter code.
 FLAGS = {
     "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪",
-    "Brazil": "🇧🇷", "Cape Verde Islands": "🇨🇻", "Colombia": "🇨🇴", "Croatia": "🇭🇷",
-    "Germany": "🇩🇪", "Ghana": "🇬🇭", "Iran": "🇮🇷", "Ivory Coast": "🇨🇮",
-    "Japan": "🇯🇵", "Jordan": "🇯🇴", "Morocco": "🇲🇦", "New Zealand": "🇳🇿",
-    "Paraguay": "🇵🇾", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "South Korea": "🇰🇷", "Spain": "🇪🇸",
-    "Switzerland": "🇨🇭", "Tunisia": "🇹🇳", "United States": "🇺🇸", "Uruguay": "🇺🇾",
-    "Uzbekistan": "🇺🇿",
+    "Bosnia-Herzegovina": "🇧🇦", "Brazil": "🇧🇷", "Cape Verde Islands": "🇨🇻",
+    "Colombia": "🇨🇴", "Croatia": "🇭🇷", "Germany": "🇩🇪", "Ghana": "🇬🇭",
+    "Iran": "🇮🇷", "Ivory Coast": "🇨🇮", "Japan": "🇯🇵", "Jordan": "🇯🇴",
+    "Morocco": "🇲🇦", "New Zealand": "🇳🇿", "Panama": "🇵🇦", "Paraguay": "🇵🇾",
+    "Saudi Arabia": "🇸🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "South Korea": "🇰🇷",
+    "Spain": "🇪🇸", "Switzerland": "🇨🇭", "Tunisia": "🇹🇳", "United States": "🇺🇸",
+    "Uruguay": "🇺🇾", "Uzbekistan": "🇺🇿",
 }
 
 
@@ -198,10 +199,16 @@ def live_view():
     st.write("")
 
     # ---- filters (per viewer, independent) ----------------------------- #
-    choice = st.radio("Show", ["All picks", "Pending", "Won", "Lost"],
+    choice = st.radio("Show", ["All picks", "Winning", "Pending", "Won", "Lost"],
                       horizontal=True, label_visibility="collapsed")
     df = pd.DataFrame(feed["bets"])
-    if choice != "All picks":
+    if choice == "Winning":
+        # in-play picks currently top scorer or joint-top (with a goal) for their team
+        df = df[(df["status"] == "Pending")
+                & ((df["player_goals"] > df["rival_goals"])
+                   | ((df["player_goals"] == df["rival_goals"])
+                      & (df["player_goals"] > 0)))]
+    elif choice != "All picks":
         df = df[df["status"] == choice]
 
     countries = sorted(df["country"].unique())

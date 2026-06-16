@@ -70,4 +70,9 @@ PLAYER_BETS = [  # team top-scorer markets we're tracking
     ("Emmanuel Agbadou", "Ivory Coast"),
     ("Ramon Sosa", "Paraguay"),
     ("Jefferson Lerma", "Colombia"),
+    ("Abdulelah Al-Amri", "Saudi Arabia"),
+    ("Jovo Lukic", "Bosnia-Herzegovina"),
+    ("Omar Rekik", "Tunisia"),
+    ("Petar Musa", "Croatia"),
+    ("Eric Davis", "Panama"),
 ]
