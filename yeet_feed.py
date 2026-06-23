@@ -78,13 +78,20 @@ def _norm(s: str) -> str:
                    if not unicodedata.combining(c)).lower().strip()
 
 
+def _mnorm(s: str) -> str:
+    """Name-match normalise: accent/case-stripped, hyphens & dots -> spaces,
+    collapsed. So 'Nizar Al-Rashdan' == 'Nizar Al Rashdan'."""
+    return " ".join(_norm(s).replace("-", " ").replace(".", " ").split())
+
+
 def names_match(a: str, b: str) -> bool:
     """True if two names plausibly refer to the same person: order-independent,
     accent/case-insensitive, whole-token containment (one name's token set is a
     subset of the other's). So 'Son' ⇄ 'Son Heung-min' and reordered names match,
     but 'Ronald Araujo' and 'Maxi Araujo' (same surname, different player) do NOT —
-    a bare surname only matches when nothing else in the names contradicts it."""
-    ta, tb = set(_norm(a).split()), set(_norm(b).split())
+    a bare surname only matches when nothing else in the names contradicts it.
+    Uses _mnorm so 'Al-Rashdan' (hyphen) tokenises the same as 'Al Rashdan'."""
+    ta, tb = set(_mnorm(a).split()), set(_mnorm(b).split())
     return bool(ta) and bool(tb) and (ta <= tb or tb <= ta)
 
 
