@@ -38,10 +38,12 @@ BAND, GRID, PAGE = "#F2F5FA", "#E6ECF4", "#E9EDF3"
 # Real flag glyphs on macOS/iOS/Android; Windows shows the two-letter code.
 FLAGS = {
     "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪",
-    "Bosnia-Herzegovina": "🇧🇦", "Brazil": "🇧🇷", "Cape Verde Islands": "🇨🇻",
-    "Colombia": "🇨🇴", "Croatia": "🇭🇷", "Germany": "🇩🇪", "Ghana": "🇬🇭",
-    "Iran": "🇮🇷", "Ivory Coast": "🇨🇮", "Japan": "🇯🇵", "Jordan": "🇯🇴",
-    "Morocco": "🇲🇦", "New Zealand": "🇳🇿", "Panama": "🇵🇦", "Paraguay": "🇵🇾",
+    "Bosnia-Herzegovina": "🇧🇦", "Brazil": "🇧🇷", "Canada": "🇨🇦",
+    "Cape Verde Islands": "🇨🇻", "Colombia": "🇨🇴", "Croatia": "🇭🇷",
+    "Ecuador": "🇪🇨", "Egypt": "🇪🇬", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Germany": "🇩🇪",
+    "Ghana": "🇬🇭", "Iran": "🇮🇷", "Ivory Coast": "🇨🇮", "Japan": "🇯🇵",
+    "Jordan": "🇯🇴", "Mexico": "🇲🇽", "Morocco": "🇲🇦", "Netherlands": "🇳🇱",
+    "New Zealand": "🇳🇿", "Panama": "🇵🇦", "Paraguay": "🇵🇾", "Portugal": "🇵🇹",
     "Saudi Arabia": "🇸🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "South Korea": "🇰🇷",
     "Spain": "🇪🇸", "Switzerland": "🇨🇭", "Tunisia": "🇹🇳", "United States": "🇺🇸",
     "Uruguay": "🇺🇾", "Uzbekistan": "🇺🇿",
