@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 import yeet_feed
 from yeet_feed import (_norm, _match_player, _status, TEAM_ALIASES,
-                       fetch_scorers, fetch_team_has_fixtures, load_overrides)
+                       fetch_scorers, fetch_team_pending, load_overrides)
 from players import PLAYER_BETS
 
 OUT_JSON = os.path.join(yeet_feed.DATA, "picks_feed.json")
@@ -36,7 +36,7 @@ PICKS: list[tuple[str, str]] = [
 def build_picks_feed() -> dict:
     overrides = load_overrides()
     scorers = fetch_scorers()
-    live = fetch_team_has_fixtures()
+    pend = fetch_team_pending()
     scorer_teams = {_norm(tm) for _, tm, _ in scorers}
 
     rows, unmatched_team = [], []
@@ -49,10 +49,10 @@ def build_picks_feed() -> dict:
         rival_name = ", ".join(tied) if tied else "—"
 
         ov = overrides.get(nteam)
-        pending = (ov == "in") if ov else live.get(nteam, True)
+        pending = (ov == "in") if ov else pend.get(nteam, True)
         status = _status(pg, rival_top, pending)
 
-        if nteam not in scorer_teams and nteam not in live:
+        if nteam not in scorer_teams and nteam not in pend:
             unmatched_team.append(country)
 
         rows.append({

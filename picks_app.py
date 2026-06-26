@@ -37,7 +37,7 @@ BAND, GRID, PAGE = "#F2F5FA", "#E6ECF4", "#E9EDF3"
 # Flags keyed on the team spelling used in players.py (football-data names).
 # Real flag glyphs on macOS/iOS/Android; Windows shows the two-letter code.
 FLAGS = {
-    "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Belgium": "🇧🇪",
+    "Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Austria": "🇦🇹", "Belgium": "🇧🇪",
     "Bosnia-Herzegovina": "🇧🇦", "Brazil": "🇧🇷", "Canada": "🇨🇦",
     "Cape Verde Islands": "🇨🇻", "Colombia": "🇨🇴", "Croatia": "🇭🇷",
     "Ecuador": "🇪🇨", "Egypt": "🇪🇬", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Germany": "🇩🇪",

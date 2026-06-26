@@ -165,16 +165,55 @@ def fetch_scorers() -> list[tuple[str, str, int]]:
              s.get("goals") or 0) for s in data.get("scorers", [])]
 
 
-def fetch_team_has_fixtures() -> dict:
-    """{normalised team name: True if it still has a non-FINISHED match}."""
-    live = {}
-    for m in _api_get("matches").get("matches", []):
-        playing = m.get("status") in LIVE_STATUSES
+def fetch_team_pending() -> dict:
+    """{normalised team name: still-in-the-tournament bool}.
+
+    A team is only settled (False) when we can PROVE it's out — it lost a
+    knockout match, or its group is complete and it finished 4th. It stays
+    pending (True) when it still has a game, when its group isn't finished, and
+    crucially when it's advanced (1st/2nd) or 3rd-place-undetermined but its
+    knockout slot hasn't been drawn yet (the bracket fills in late, so 'no
+    upcoming named fixture' must NOT be read as elimination)."""
+    matches = _api_get("matches").get("matches", [])
+    standings = _api_get("standings").get("standings", [])
+
+    # group position + whether the whole group has finished its games
+    grp = {}
+    for block in standings:
+        if block.get("type") != "TOTAL":
+            continue
+        table = block.get("table", [])
+        size = len(table)
+        complete = bool(table) and all((r.get("playedGames") or 0) >= size - 1
+                                       for r in table)
+        for r in table:
+            nm = _norm((r.get("team") or {}).get("name", ""))
+            if nm:
+                grp[nm] = (r.get("position"), complete)
+
+    upcoming, finished_ko = set(), set()
+    for m in matches:
+        ko = m.get("stage") != "GROUP_STAGE"
+        finished = m.get("status") == "FINISHED"
         for side in ("homeTeam", "awayTeam"):
             nm = _norm((m.get(side) or {}).get("name", ""))
-            if nm:
-                live[nm] = live.get(nm, False) or playing
-    return live
+            if not nm:
+                continue
+            if not finished:
+                upcoming.add(nm)        # a game still to play (group or knockout)
+            elif ko:
+                finished_ko.add(nm)     # already played a knockout tie
+
+    pending = {}
+    for t in set(grp) | upcoming | finished_ko:
+        if t in upcoming:
+            pending[t] = True                       # has a fixture to come
+        elif t in finished_ko:
+            pending[t] = False                      # knocked out (lost a KO tie)
+        else:
+            pos, complete = grp.get(t, (None, False))
+            pending[t] = not (complete and pos and pos >= 4)  # 4th & done = out
+    return pending
 
 
 # --------------------------- per-player compute ---------------------------- #
@@ -212,7 +251,7 @@ def build_feed() -> dict:
     players = parse_books()
     overrides = load_overrides()
     scorers = fetch_scorers()
-    live = fetch_team_has_fixtures()
+    pend = fetch_team_pending()
     scorer_teams = {_norm(tm) for _, tm, _ in scorers}
 
     rows, unmatched_team = [], []
@@ -225,10 +264,10 @@ def build_feed() -> dict:
         tie_count = len(tied)
 
         ov = overrides.get(nteam)
-        pending = (ov == "in") if ov else live.get(nteam, True)
+        pending = (ov == "in") if ov else pend.get(nteam, True)
         status = _status(pg, rival_top, pending)
 
-        if nteam not in scorer_teams and nteam not in live:
+        if nteam not in scorer_teams and nteam not in pend:
             unmatched_team.append(p["country"])
 
         books = sorted(({"book": b, "stake": round(s, 2)}
