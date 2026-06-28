@@ -159,7 +159,9 @@ def load_overrides(path: str = STATUS_CSV) -> dict:
 
 # ----------------------------- live data ----------------------------------- #
 def fetch_scorers() -> list[tuple[str, str, int]]:
-    data = _api_get("scorers", limit=100)
+    # limit must stay ahead of the total scorers (100 cut off 1-goal players,
+    # wrongly showing them as 0) — bump it as the tournament's tally grows.
+    data = _api_get("scorers", limit=500)
     return [(s.get("player", {}).get("name", ""),
              s.get("team", {}).get("name", ""),
              s.get("goals") or 0) for s in data.get("scorers", [])]
